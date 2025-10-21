@@ -2,7 +2,7 @@
 
 namespace WP_CLI_Login;
 
-use Composer\Semver\Semver;
+use UnexpectedValueException;
 use WP_CLI_Login\WP_CLI_Login_Server;
 
 class ServerPlugin
@@ -124,7 +124,26 @@ class ServerPlugin
      */
     public function versionSatisfies($constraints)
     {
-        return Semver::satisfies($this->version(), $constraints);
+        $constraints = is_string($constraints) ? trim($constraints) : '';
+        $version = is_string($this->version()) ? trim($this->version()) : '';
+
+        if ($constraints === '' || $version === '') {
+            // Saved installs prior to 1.5 did not persist a constraint; force reset flow.
+            return false;
+        }
+
+        try {
+            $semver = 'Composer\\Semver\\Semver';
+
+            if (!class_exists($semver)) {
+                return false;
+            }
+
+            return call_user_func([$semver, 'satisfies'], $version, $constraints);
+        } catch (UnexpectedValueException $exception) {
+            // Bail gracefully if either side is not a valid semver string.
+            return false;
+        }
     }
 
     /**
@@ -136,7 +155,7 @@ class ServerPlugin
     {
         static $loaded;
 
-        if (! $loaded) {
+        if (!$loaded) {
             $loaded = get_plugin_data($this->file);
         }
 
